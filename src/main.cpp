@@ -105,14 +105,58 @@ int main(int argc, char **argv)
         schedule_threads[i].join();
     }
 
+
     // print final statistics
     //  - CPU utilization
+    double cpu_time = 0;
+    double total_time = static_cast<double>(currentTime());
+
+    for (int i = 0; i < sizeof(processes); i++)
+    {
+        cpu_time = cpu_time + processes[i]->getTurnaroundTime();
+    }
+
+    std::cout << "CPU Utilization: " << (cpu_time/total_time);
+
     //  - Throughput
     //     - Average for first 50% of processes finished
+    double first_processes_time = 0;
+
+    for (int i = 0; i < (sizeof(processes)/2); i++)
+    {
+        first_processes_time = first_processes_time + processes[i]->getTurnaroundTime();
+    }
+    std::cout << "Average of First 50% of Processes Finished: " << ((sizeOf(processes)/2)/first_processes_time);
+
     //     - Average for second 50% of processes finished
-    //     - Overall average
+    double second_processes_time = 0;
+
+    for (int i = (sizeof(processes)/2); i < sizeof(processes); i++)
+    {
+        second_processes_time = second_processes_time + processes[i]->getTurnaroundTime();
+    }
+    std::cout << "Average of Second 50% of Processes Finished: " << ((sizeOf(processes) - sizeOf(processes)/2)/second_processes_time);
+
+    //     - Overall average of processes finished
+    std::cout << "Overall Average of Processes Finished: " << (sizeOf(processes)/(first_processes_time + second_processes_time));
+
     //  - Average turnaround time
+    double total_turn_time = 0;
+
+    for (int i = 0; i < sizeof(processes); i++)
+    {
+        total_turn_time = total_turn_time + processes[i]->getTurnaroundTime();
+    }
+    std::cout << "Average Turnaround Time: " << (total_turn_time/sizeof(processes));
+
     //  - Average waiting time
+    double total_wait_time = 0;
+    
+    for (int i = 0; i < sizeof(processes); i++)
+    {
+        total_wait_time = total_wait_time + processes[i]->getWaitTime();
+    }
+    std::cout << "Average Waiting Time: " << (total_wait_time/sizeof(processes));
 
 
     // Clean up before quitting program
@@ -125,15 +169,55 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
 {
     // Work to be done by each core idependent of the other cores
     // Repeat until all processes in terminated state:
-    //   - *Get process at front of ready queue
-    //   - Simulate the processes running until one of the following:
-    //     - CPU burst time has elapsed
-    //     - Interrupted (RR time slice has elapsed or process preempted by higher priority process)
+    while (!(shared_data->all_terminated)) {
+        Process *current = shared_data->ready_queue[0];
+        uint64_t startTime = currentTime();
+        //See implementation: shoudl timeElapsed exist or should it be dynamic
+        uint64_t timeElapsed = currentTime() - startTime;
+        while((timeElapsed < current->remain_time) {
+            if (shared_data->algorithm == ScheduleAlgorithm::RR){
+                if (shared_data->time_slice < timeElapsed) {
+                    current->remain_time -= timeElapsed;
+                    //Context Switch wait time
+                    usleep(shared_data->context_switch);
+                    current->state == State::Ready;
+                    //Put back on the ready queue
+                    break;
+                }
+            }
+            if ((shared_data->ready_queue[0]->priority) < current->priority) {
+                current->remain_time -= timeElapsed;
+                //Context Switch wait time
+                usleep(shared_data->context_switch);
+                current->state == State::Ready;
+                //put back on the ready queue
+                break;
+            }
+            timeElapsed = currentTime() - startTime;
+        }
+    }
+
+    if (current->num_bursts > 0 && current->state != State::Ready) {
+        //Context Switch wait time
+        usleep(shared_data->context_switch);
+        current->state == State::IO;
+    }
+
+    if (current->num_bursts == 0) {
+        //Context Switch wait time
+        usleep(shared_data->context_switch);
+        current->state = State::Terminated;
+    }
+    //   - *Get process at front of ready queue - DONE
+    //   - Simulate the processes running until one of the following: - DONE
+    //     - CPU burst time has elapsed - DONE
+    //     - Interrupted (RR time slice has elapsed or process preempted by higher priority process) - DONE with RR --- Is there an easy way to check if process is preempted by higher prio process?
+
     //  - Place the process back in the appropriate queue
-    //     - I/O queue if CPU burst finished (and process not finished) -- no actual queue, simply set state to IO
-    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated
+    //     - I/O queue if CPU burst finished (and process not finished) -- no actual queue, simply set state to IO -- Done I think
+    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- DONE I think
     //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time)
-    //  - Wait context switching time
+    //  - Wait context switching time -- DONE
     //  - * = accesses shared data (ready queue), so be sure to use proper synchronization
 }
 
