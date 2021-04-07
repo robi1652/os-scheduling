@@ -84,11 +84,25 @@ int main(int argc, char **argv)
 
         // Do the following:
         //   - Get current time
+        uint64_t current_time = currentTime()
+
         //   - *Check if any processes need to move from NotStarted to Ready (based on elapsed time), and if so put that process in the ready queue
+        // Don't know how to determine if the need to move
+
         //   - *Check if any processes have finished their I/O burst, and if so put that process back in the ready queue
+        // Does "finished their IO mean it's in NotStarted"
+
         //   - *Check if any running process need to be interrupted (RR time slice expires or newly ready process has higher priority)
+        if (shared_data->algorithm == ScheduleAlgorithm::RR) {
+            //Check if time slice expired 
+        } 
+        
+        //Check if a newly ready process has a higher prio -- Needs to happen regardless of schedule algorithm so it's not in an else
+        
         //   - *Sort the ready queue (if needed - based on scheduling algorithm)
+        
         //   - Determine if all processes are in the terminated state
+        
         //   - * = accesses shared data (ready queue), so be sure to use proper synchronization
 
         // output process status table
