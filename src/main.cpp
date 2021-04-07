@@ -122,16 +122,24 @@ int main(int argc, char **argv)
 
         //   - *Check if any running process need to be interrupted (RR time slice expires or newly ready process has higher priority)
         //  Need a mutex lock here 
+
         if (current->getState() == Process::State::Running) {
             if (shared_data->algorithm == ScheduleAlgorithm::RR) {
                 uint64_t tsBurstTotalTime = current->getCurrentBurstTime();
                 if (tsBurstTotalTime > shared_data->time_slice) {
-                    current->interrupt();
+                    {
+                        std::lock_guard<std::mutex> lock(share->mutex);
+                        current->interrupt();    
+                    }
+                    
                     //  Do I need to do anything else? Pretty sure the rest of the interrupt is dealt with in CRP
                 }
             } else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
                 if (current->getPriority() > shared_data->ready_queue.front()->getPriority()) {
-                    current->interrupt();
+                    {
+                        std::lock_guard<std::mutex> lock(share->mutex);
+                        current->interrupt();                        
+                    }
                     //  Do I need to do anything else? see above
                 }
             }
@@ -243,10 +251,6 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
             Process* current = shared_data->ready_queue.front();
             shared_data->ready_queue.pop_front();
         }
-<<<<<<< HEAD
-=======
-
->>>>>>> dcf3701276414d0014796f463dba6e9fc5c353df
         //  critical section ends
 
         current->setState(Process::State::Running, currentTime());
@@ -268,22 +272,13 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 current->setState(Process::State::Ready, currentTime());
                 current->interruptHandled();
                 current->setCpuCore(-1);
-<<<<<<< HEAD
                 //  mutex lock here again
-=======
-                //  mutex lock here again    
->>>>>>> dcf3701276414d0014796f463dba6e9fc5c353df
                 {
                     std::lock_guard<std::mutex> lock(share->mutex);
                     shared_data->ready_queue.push_back(current);
                     usleep(shared_data->context_switch);
-<<<<<<< HEAD
                 }
                 interrupted = true;            
-=======
-                //update core
-                }                
->>>>>>> dcf3701276414d0014796f463dba6e9fc5c353df
                 break;
             } else {
                 timeElapsed = currentTime() - current->getBurstStartTime();
