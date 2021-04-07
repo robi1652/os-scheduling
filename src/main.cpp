@@ -185,44 +185,54 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
 {
     // Work to be done by each core idependent of the other cores
     // Repeat until all processes in terminated state:
-    while (!(shared_data->all_terminated)) {
-        Process *current = shared_data->ready_queue[0];
-        shared_data->ready_queue.pop_front();
-        uint64_t startTime = currentTime();
-        //See implementation: shoudl timeElapsed exist or should it be dynamic
-        uint64_t timeElapsed = currentTime() - startTime;
 
-        //The if RR should be outside of the while loop, right
-        if (shared_data->algorithm == ScheduleAlgorithm::RR){
-            while((timeElapsed < current->remain_time)) {
-                if (shared_data->time_slice < timeElapsed) {
-                    current->remain_time -= timeElapsed;
-                    //Context Switch wait time
-                    usleep(shared_data->context_switch);
-                    current->setState(Process::State::Ready, currentTime());
-                    shared_data->ready_queue.push_back(current);
-                    //Put back on the ready queue 
-                    break;
-                }
-                if ((shared_data->ready_queue[0]->priority) < current->getPriority()) {
-                current->remain_time -= timeElapsed; // This is wrong- how do I properly update the time
-                //Context Switch wait time
-                usleep(shared_data->context_switch);
+    //  Is this current while loop set up properly? Do I run until the ready queue is empty or until all_terminated?
+    while (!(shared_data->all_terminated)) {
+        //  Is my pointer setup correct? 
+        Process* current = shared_data->ready_queue.front();
+        shared_data->ready_queue.pop_front();
+        current->setState(Process::State::Running, currentTime());
+
+        //  Do I need this setBurstStartTime line -- It doesn't work, currentTime con
+        current->setBurstStartTime(currentTime());
+
+        uint64_t timeElapsed = currentTime() - current->getBurstStartTime();
+        uint16_t currentBurst = current->getCurrentBurst();
+        uint32_t currentBurstTime = current->getCurrentBurstTime();
+        uint16_t processBurstNum = current->getNumberOfBursts();
+
+        while (timeElapsed < currentBurstTime) {
+            //  This seems wrong, interrupt is set to true by default
+            if (current->isInterrupted() == true) {
+                timeElapsed = currentTime() - current->getBurstStartTime();
+                current->updateBurstTime(currentBurst, currentBurstTime - timeElapsed);
                 current->setState(Process::State::Ready, currentTime());
-                //put back on the ready queue
+                usleep(shared_data->context_switch);
+                shared_data->ready_queue.push_back(current);
                 break;
-                }
-                timeElapsed = currentTime() - startTime;
+            } else {
+                timeElapsed = currentTime() - current->getBurstStartTime();
             }
         }
-        //I don't understand "number of bursts"
-        if (current->num_bursts > 0 && current->getState() != Process::State::Ready) {
+
+        //  If it gets to this point, the burst is done
+
+        //  Update burst time to reflect no time left on that burst
+        current->updateBurstTime(currentBurst, currentBurstTime - timeElapsed);
+
+        //  Are these two IO/Terminated switches done correctly?
+
+        //  Done with current burst but more bursts remain == on to an IO burst
+        if (processBurstNum > currentBurst + 1) {
+            current->setBurstStartTime(currentTime());
+            current->moveToNextBurst();
             //Context Switch wait time
             usleep(shared_data->context_switch);
             current->setState(Process::State::IO, currentTime()); 
         }
 
-        if (current->num_bursts == 0) {
+        //  Done with current burst and no more bursts remain == terminate
+        if (processBurstNum == currentBurst + 1) {
             //Context Switch wait time
             usleep(shared_data->context_switch);
             current->setState(Process::State::Terminated, currentTime());
@@ -230,14 +240,14 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
     }
 
     //   - *Get process at front of ready queue - DONE
-    //   - Simulate the processes running until one of the following: - DONE
-    //     - CPU burst time has elapsed - DONE
-    //     - Interrupted (RR time slice has elapsed or process preempted by higher priority process) - DONE with RR --- Is there an easy way to check if process is preempted by higher prio process?
+    //   - Simulate the processes running until one of the following:
+    //     - CPU burst time has elapsed  -- Done I think
+    //     - Interrupted (RR time slice has elapsed or process preempted by higher priority process) --- How does coreRunProcesses handle an interrupt?
 
     //  - Place the process back in the appropriate queue
     //     - I/O queue if CPU burst finished (and process not finished) -- no actual queue, simply set state to IO -- Done I think
-    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- Not done, I don't understand this one
-    //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time)
+    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- Done I think
+    //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time) -- Done I think
     //  - Wait context switching time -- DONE
     //  - * = accesses shared data (ready queue), so be sure to use proper synchronization
 }
