@@ -237,10 +237,12 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
         }
 
         //  critical section starts
+        {
+            std::lock_guard<std::mutex> lock(share->mutex);
 
-        Process* current = shared_data->ready_queue.front();
-        shared_data->ready_queue.pop_front();
-
+            Process* current = shared_data->ready_queue.front();
+            shared_data->ready_queue.pop_front();
+        }
         //  critical section ends
 
         current->setState(Process::State::Running, currentTime());
@@ -263,8 +265,11 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 current->interruptHandled();
                 current->setCpuCore(-1);
                 //  mutex lock here again
-                shared_data->ready_queue.push_back(current);
-                usleep(shared_data->context_switch);
+                {
+                    std::lock_guard<std::mutex> lock(share->mutex);
+                    shared_data->ready_queue.push_back(current);
+                    usleep(shared_data->context_switch);
+                }
                 interrupted = true;            
                 break;
             } else {
