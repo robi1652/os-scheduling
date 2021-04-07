@@ -240,8 +240,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 current->setState(Process::State::Ready, currentTime());
                 current->interruptHandled();
                 current->setCpuCore(-1);
-                //  mutex lock here again
-                
+                //  mutex lock here again    
                 {
                     std::lock_guard<std::mutex> lock(share->mutex);
                     shared_data->ready_queue.push_back(current);
