@@ -77,25 +77,43 @@ int main(int argc, char **argv)
 
     // Main thread work goes here
     int num_lines = 0;
+    uint64_t loopTime;
+    uint64_t masterStartTime = currentTime();
+    uint64_t masterElapsedTime;
+
+    //  This is supposed to loop through the list of processes one by one, right? and run each of these checks below on each individual process?
+    //  My plan: Just have this single while loop with no inner loops, just has if checks that ask "is this process ready?" "is this process in IO and is it done with it?" "is this process running and needs interrupting?"
     while (!(shared_data->all_terminated))
     {
         // Clear output from previous iteration
         clearOutput(num_lines);
 
+        Process* current = shared_data->processes.front();
+
         // Do the following:
         //   - Get current time
+        loopTime = currentTime();
+        
         //   - *Check if any processes need to move from NotStarted to Ready (based on elapsed time), and if so put that process in the ready queue
-        //  How can i tell if processes need to move baesd on elapsed time?
-        //  How do I track elapsed time?
+        //  if time elapsed is longer than "Start Time" then put it on the back of the ready queue
+        if (current->getState() == Process::State::NotStarted) {
+            if (masterStartTime + current->getStartTime() < currentTime()) {
+                current->setState(Process::State::Ready, currentTime());
+                shared_data->ready_queue.push_back(current);
+            }
+        }
 
         //   - *Check if any processes have finished their I/O burst, and if so put that process back in the ready queue
-        //  How can I tell if a process is done with its IO burst?
+        //  Unsure of how this is done
+        //  In CRP, do I need to call the burstStartTime methods to have to keep track of IO bursts?
+        //  ---Looks like it
 
         //   - *Check if any running process need to be interrupted (RR time slice expires or newly ready process has higher priority)
-        //  Isn't this handled in coreRunProcesses?
+
 
         //   - *Sort the ready queue (if needed - based on scheduling algorithm)
         //  Think I use the comparators here but idk how
+
         //if (shared_data->algorithm == ScheduleAlgorithm::SJF) {
 
         //} else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
@@ -103,7 +121,7 @@ int main(int argc, char **argv)
         //}
 
         //   - Determine if all processes are in the terminated state
-        //  This is handled by the while condition
+        //  This is handled by the while condition, isn't it?
 
         //   - * = accesses shared data (ready queue), so be sure to use proper synchronization
 
@@ -186,14 +204,25 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
     // Work to be done by each core idependent of the other cores
     // Repeat until all processes in terminated state:
 
-    //  Is this current while loop set up properly? Do I run until the ready queue is empty or until all_terminated?
     while (!(shared_data->all_terminated)) {
-        //  Is my pointer setup correct? 
+
+        //  Make sure ready queue not empty
+
+        if (shared_data->ready_queue.size() == 0) {
+            continue;
+        }
+
+        //  critical section starts
+
         Process* current = shared_data->ready_queue.front();
         shared_data->ready_queue.pop_front();
+
+        //  critical section ends
+
         current->setState(Process::State::Running, currentTime());
 
-        //  Do I need this setBurstStartTime line -- It doesn't work, currentTime con
+        current->setCpuCore(core_id);
+
         current->setBurstStartTime(currentTime());
 
         uint64_t timeElapsed = currentTime() - current->getBurstStartTime();
@@ -202,13 +231,16 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
         uint16_t processBurstNum = current->getNumberOfBursts();
 
         while (timeElapsed < currentBurstTime) {
-            //  This seems wrong, interrupt is set to true by default
             if (current->isInterrupted() == true) {
                 timeElapsed = currentTime() - current->getBurstStartTime();
                 current->updateBurstTime(currentBurst, currentBurstTime - timeElapsed);
                 current->setState(Process::State::Ready, currentTime());
-                usleep(shared_data->context_switch);
+                current->interruptHandled();
+                current->setCpuCore(-1);
+                //  mutex lock here again
                 shared_data->ready_queue.push_back(current);
+                usleep(shared_data->context_switch);
+                //update core                
                 break;
             } else {
                 timeElapsed = currentTime() - current->getBurstStartTime();
@@ -226,29 +258,31 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
         if (processBurstNum > currentBurst + 1) {
             current->setBurstStartTime(currentTime());
             current->moveToNextBurst();
+            current->setCpuCore(-1);
+            current->setState(Process::State::IO, currentTime());            
             //Context Switch wait time
-            usleep(shared_data->context_switch);
-            current->setState(Process::State::IO, currentTime()); 
+            usleep(shared_data->context_switch);            
+        } else {         
+            //  Done with current burst and no more bursts remain == terminate
+            current->setCpuCore(-1);
+            current->setState(Process::State::Terminated, currentTime());
+            //Context Switch wait time
+            usleep(shared_data->context_switch);           
         }
 
-        //  Done with current burst and no more bursts remain == terminate
-        if (processBurstNum == currentBurst + 1) {
-            //Context Switch wait time
-            usleep(shared_data->context_switch);
-            current->setState(Process::State::Terminated, currentTime());
-        }
+        
     }
 
-    //   - *Get process at front of ready queue - DONE
+    //   - *Get process at front of ready queue - Done
     //   - Simulate the processes running until one of the following:
-    //     - CPU burst time has elapsed  -- Done I think
-    //     - Interrupted (RR time slice has elapsed or process preempted by higher priority process) --- How does coreRunProcesses handle an interrupt?
+    //     - CPU burst time has elapsed  -- Done 
+    //     - Interrupted (RR time slice has elapsed or process preempted by higher priority process) -- Done
 
     //  - Place the process back in the appropriate queue
-    //     - I/O queue if CPU burst finished (and process not finished) -- no actual queue, simply set state to IO -- Done I think
-    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- Done I think
-    //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time) -- Done I think
-    //  - Wait context switching time -- DONE
+    //     - I/O queue if CPU burst finished (and process not finished) -- no actual queue, simply set state to IO -- Done 
+    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- Done 
+    //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time) -- Done 
+    //  - Wait context switching time -- Done
     //  - * = accesses shared data (ready queue), so be sure to use proper synchronization
 }
 

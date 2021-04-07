@@ -140,10 +140,25 @@ void Process::moveToNextBurst()
     current_burst += 1;
 }
 
+//  Where am I supposed to call this? End of the loop iteration in CRP?
+//  How do I do most of these
 void Process::updateProcess(uint64_t current_time)
 {
     // use `current_time` to update turnaround time, wait time, burst times, 
     // cpu time, and remaining time
+
+    //  Turn Time
+    //  make sure not terminated
+    turn_time = current_time - start_time;
+
+    //  Don't know how to do wait time
+
+    //  Don't know how to do burst time -- Dont need
+
+    //  Don't know how to do CPU time
+
+    //  Is remain time just all burst times - burst times completed
+
 }
 
 void Process::updateBurstTime(int burst_idx, uint32_t new_time)
