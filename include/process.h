@@ -41,12 +41,18 @@ public:
     double getWaitTime() const;
     double getCpuTime() const;
     double getRemainingTime() const;
+    
+    uint16_t getCurrentBurst() const;
+    uint32_t getCurrentBurstTime() const;
+    uint8_t getNumberOfBursts() const;
 
     void setBurstStartTime(uint64_t current_time);
     void setState(State new_state, uint64_t current_time);
     void setCpuCore(int8_t core_num);
     void interrupt();
     void interruptHandled();
+
+    void moveToNextBurst();
 
     void updateProcess(uint64_t current_time);
     void updateBurstTime(int burst_idx, uint32_t new_time);
