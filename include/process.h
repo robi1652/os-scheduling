@@ -26,6 +26,8 @@ private:
     uint64_t launch_time;       // actual time in ms (since epoch) that process was 'launched'
     // you are welcome to add other private data fields here if you so choose
 
+    uint64_t current_wait_start_time; //  time spent waiting on the ready queue
+
 public:
     Process(ProcessDetails details, uint64_t current_time);
     ~Process();
@@ -45,14 +47,16 @@ public:
     uint16_t getCurrentBurst() const;
     uint32_t getCurrentBurstTime() const;
     uint8_t getNumberOfBursts() const;
+    uint64_t getCurrentWaitStartTime() const;
 
     void setBurstStartTime(uint64_t current_time);
     void setState(State new_state, uint64_t current_time);
     void setCpuCore(int8_t core_num);
     void interrupt();
-    void interruptHandled();
+    void interruptHandled(uint64_t current_time);
 
     void moveToNextBurst();
+    void setCurrentWaitStartTime(uint64_t current_time);
 
     void updateProcess(uint64_t current_time);
     void updateBurstTime(int burst_idx, uint32_t new_time);

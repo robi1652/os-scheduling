@@ -96,37 +96,61 @@ int main(int argc, char **argv)
         
         //   - *Check if any processes need to move from NotStarted to Ready (based on elapsed time), and if so put that process in the ready queue
         //  if time elapsed is longer than "Start Time" then put it on the back of the ready queue
+
+        //  Need a mutex lock here
         if (current->getState() == Process::State::NotStarted) {
-            if (masterStartTime + current->getStartTime() < currentTime()) {
-                current->setState(Process::State::Ready, currentTime());
+            if (masterStartTime + current->getStartTime() < loopTime) {
+                current->setState(Process::State::Ready, loopTime);
                 shared_data->ready_queue.push_back(current);
             }
         }
 
         //   - *Check if any processes have finished their I/O burst, and if so put that process back in the ready queue
-        //  Unsure of how this is done
         //  In CRP, do I need to call the burstStartTime methods to have to keep track of IO bursts?
         //  ---Looks like it
 
+        //  Need a mutex lock here
+        if (current->getState() == Process::State::IO) {
+            uint64_t timeOnIOBurst = loopTime - current->getBurstStartTime();
+            uint64_t ioBurstTotalTime = current->getCurrentBurstTime();
+            if (timeOnIOBurst > ioBurstTotalTime) {
+                current->moveToNextBurst();
+                current->setState(Process::State::Ready);
+                shared_data->ready_queue.push_back(current);
+            }
+        }
+
         //   - *Check if any running process need to be interrupted (RR time slice expires or newly ready process has higher priority)
+        //  Need a mutex lock here 
+        if (current->getState() == Process::State::Running) {
+            if (shared_data->algorithm == ScheduleAlgorithm::RR) {
+                uint64_t tsBurstTotalTime = current->getCurrentBurstTime();
+                if (tsBurstTotalTime > shared_data->time_slice) {
+                    current->interrupt();
+                    //  Do I need to do anything else? Pretty sure the rest of the interrupt is dealt with in CRP
+                }
+            } else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
+                if (current->getPriority() > shared_data->ready_queue.front()->getPriority()) {
+                    current->interrupt();
+                    //  Do I need to do anything else? see above
+                }
+            }
+        }
 
 
         //   - *Sort the ready queue (if needed - based on scheduling algorithm)
-        //  Think I use the comparators here but idk how
-
         //if (shared_data->algorithm == ScheduleAlgorithm::SJF) {
-
         //} else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
-
         //}
 
         //   - Determine if all processes are in the terminated state
-        //  This is handled by the while condition, isn't it?
 
         //   - * = accesses shared data (ready queue), so be sure to use proper synchronization
 
         // output process status table
         num_lines = printProcessOutput(processes, shared_data->mutex);
+
+        current->updateProcess(loopTime);
 
         // sleep 50 ms
         usleep(50000);
@@ -229,6 +253,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
         uint16_t currentBurst = current->getCurrentBurst();
         uint32_t currentBurstTime = current->getCurrentBurstTime();
         uint16_t processBurstNum = current->getNumberOfBursts();
+        bool interrupted = false;
 
         while (timeElapsed < currentBurstTime) {
             if (current->isInterrupted() == true) {
@@ -240,11 +265,15 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 //  mutex lock here again
                 shared_data->ready_queue.push_back(current);
                 usleep(shared_data->context_switch);
-                //update core                
+                interrupted = true;            
                 break;
             } else {
                 timeElapsed = currentTime() - current->getBurstStartTime();
             }
+        }
+
+        if (interrupted == true) {
+            continue;
         }
 
         //  If it gets to this point, the burst is done

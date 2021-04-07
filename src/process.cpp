@@ -106,6 +106,11 @@ uint8_t Process::getNumberOfBursts() const
     return num_bursts;
 }
 
+uint64_t getCurrentWaitStartTime() const 
+{
+    return current_wait_start_time;
+}
+
 void Process::setBurstStartTime(uint64_t current_time)
 {
     burst_start_time = current_time;
@@ -140,6 +145,13 @@ void Process::moveToNextBurst()
     current_burst += 1;
 }
 
+void Process::setCurrentWaitStartTime(uint64_t current_time)
+{
+    current_wait_start_time = current_time;
+}
+
+
+
 //  Where am I supposed to call this? End of the loop iteration in CRP?
 //  How do I do most of these
 void Process::updateProcess(uint64_t current_time)
@@ -149,15 +161,30 @@ void Process::updateProcess(uint64_t current_time)
 
     //  Turn Time
     //  make sure not terminated
-    turn_time = current_time - start_time;
+    if (state != Process::State::Terminated) {
+        turn_time = current_time - start_time;
+    } 
 
-    //  Don't know how to do wait time
+    //  Wait Time
+    uint64_t current_wait_period = current_time - current_wait_start_time;
+    wait_time += current_wait_period;
 
-    //  Don't know how to do burst time -- Dont need
+    //  CPU time 
+    for (int j = 0; j < current_burst; j+=2) {
+        cpu_time += burst_times[j];
+    }
 
-    //  Don't know how to do CPU time
+    //remain time
+    int start;
+    if (current_burst % 2 == 0) {
+        start = current_burst;
+    } else {
+        start = current_burst + 1;
+    }
 
-    //  Is remain time just all burst times - burst times completed
+    for (int i = start; i < burst_times.size(); i+=2) {
+        remain_time += burst_times[i];
+    }
 
 }
 
