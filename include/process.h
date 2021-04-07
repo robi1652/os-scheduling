@@ -53,7 +53,7 @@ public:
     void setState(State new_state, uint64_t current_time);
     void setCpuCore(int8_t core_num);
     void interrupt();
-    void interruptHandled(uint64_t current_time);
+    void interruptHandled();
 
     void moveToNextBurst();
     void setCurrentWaitStartTime(uint64_t current_time);

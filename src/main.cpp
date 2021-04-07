@@ -88,7 +88,7 @@ int main(int argc, char **argv)
         // Clear output from previous iteration
         clearOutput(num_lines);
 
-        Process* current = shared_data->processes.front();
+        Process* current = processes.front();
 
         // Do the following:
         //   - Get current time
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
             uint64_t ioBurstTotalTime = current->getCurrentBurstTime();
             if (timeOnIOBurst > ioBurstTotalTime) {
                 current->moveToNextBurst();
-                current->setState(Process::State::Ready);
+                current->setState(Process::State::Ready, loopTime);
                 shared_data->ready_queue.push_back(current);
             }
         }
@@ -128,7 +128,7 @@ int main(int argc, char **argv)
                 uint64_t tsBurstTotalTime = current->getCurrentBurstTime();
                 if (tsBurstTotalTime > shared_data->time_slice) {
                     {
-                        std::lock_guard<std::mutex> lock(share->mutex);
+                        std::lock_guard<std::mutex> lock(shared_data->mutex);
                         current->interrupt();    
                     }
                     
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
             } else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
                 if (current->getPriority() > shared_data->ready_queue.front()->getPriority()) {
                     {
-                        std::lock_guard<std::mutex> lock(share->mutex);
+                        std::lock_guard<std::mutex> lock(shared_data->mutex);
                         current->interrupt();                        
                     }
                     //  Do I need to do anything else? see above
@@ -245,10 +245,11 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
         }
 
         //  critical section starts
+        Process* current;
         {
-            std::lock_guard<std::mutex> lock(share->mutex);
+            std::lock_guard<std::mutex> lock(shared_data->mutex);
 
-            Process* current = shared_data->ready_queue.front();
+            current = shared_data->ready_queue.front();
             shared_data->ready_queue.pop_front();
         }
         //  critical section ends
@@ -274,7 +275,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 current->setCpuCore(-1);
                 //  mutex lock here again
                 {
-                    std::lock_guard<std::mutex> lock(share->mutex);
+                    std::lock_guard<std::mutex> lock(shared_data->mutex);
                     shared_data->ready_queue.push_back(current);
                     usleep(shared_data->context_switch);
                 }

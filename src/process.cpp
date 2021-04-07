@@ -29,6 +29,7 @@ Process::Process(ProcessDetails details, uint64_t current_time)
     {
         remain_time += burst_times[i];
     }
+    current_wait_start_time = 0;
 }
 
 Process::~Process()
@@ -106,7 +107,7 @@ uint8_t Process::getNumberOfBursts() const
     return num_bursts;
 }
 
-uint64_t getCurrentWaitStartTime() const 
+uint64_t Process::getCurrentWaitStartTime() const 
 {
     return current_wait_start_time;
 }
@@ -182,7 +183,7 @@ void Process::updateProcess(uint64_t current_time)
         start = current_burst + 1;
     }
 
-    for (int i = start; i < burst_times.size(); i+=2) {
+    for (int i = start; i < num_bursts; i+=2) {
         remain_time += burst_times[i];
     }
 
