@@ -147,9 +147,14 @@ int main(int argc, char **argv)
 
 
         //   - *Sort the ready queue (if needed - based on scheduling algorithm)
-        //if (shared_data->algorithm == ScheduleAlgorithm::SJF) {
-        //} else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
-        //}
+        if (shared_data->algorithm == ScheduleAlgorithm::SJF)
+        {
+            shared_data->ready_queue.sort(SjfComparator());
+        }
+        else if (shared_data->algorithm == ScheduleAlgorithm::PP) 
+        {
+            shared_data->ready_queue.sort(PpComparator());
+        }
 
         //   - Determine if all processes are in the terminated state
 
