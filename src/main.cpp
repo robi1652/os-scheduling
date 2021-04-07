@@ -89,6 +89,8 @@ int main(int argc, char **argv)
         clearOutput(num_lines);
 
         Process* current = processes.front();
+        processes.erase(processes.begin());
+
 
         // Do the following:
         //   - Get current time
@@ -164,6 +166,8 @@ int main(int argc, char **argv)
         num_lines = printProcessOutput(processes, shared_data->mutex);
 
         current->updateProcess(loopTime);
+
+        processes.push_back(current);
 
         // sleep 50 ms
         usleep(50000);
