@@ -91,6 +91,21 @@ double Process::getRemainingTime() const
     return (double)remain_time / 1000.0;
 }
 
+uint16_t Process::getCurrentBurst() const
+{
+    return current_burst;
+}
+
+uint32_t Process::getCurrentBurstTime() const
+{
+    return burst_times[current_burst];
+}
+
+uint8_t Process::getNumberOfBursts() const
+{
+    return num_bursts;
+}
+
 void Process::setBurstStartTime(uint64_t current_time)
 {
     burst_start_time = current_time;
@@ -120,10 +135,30 @@ void Process::interruptHandled()
     is_interrupted = false;
 }
 
+void Process::moveToNextBurst()
+{
+    current_burst += 1;
+}
+
+//  Where am I supposed to call this? End of the loop iteration in CRP?
+//  How do I do most of these
 void Process::updateProcess(uint64_t current_time)
 {
     // use `current_time` to update turnaround time, wait time, burst times, 
     // cpu time, and remaining time
+
+    //  Turn Time
+    //  make sure not terminated
+    turn_time = current_time - start_time;
+
+    //  Don't know how to do wait time
+
+    //  Don't know how to do burst time -- Dont need
+
+    //  Don't know how to do CPU time
+
+    //  Is remain time just all burst times - burst times completed
+
 }
 
 void Process::updateBurstTime(int burst_idx, uint32_t new_time)
@@ -138,13 +173,23 @@ void Process::updateBurstTime(int burst_idx, uint32_t new_time)
 // SJF - comparator for sorting read queue based on shortest remaining CPU time
 bool SjfComparator::operator ()(const Process *p1, const Process *p2)
 {
-    // your code here!
+    if ((p1->getRemainingTime()) > (p2->getRemainingTime())) {
+        return true;
+    } else {
+        return false;
+    }
+
+
     return false; // change this!
 }
 
 // PP - comparator for sorting read queue based on priority
 bool PpComparator::operator ()(const Process *p1, const Process *p2)
 {
-    // your code here!
+    if ((p1->getPriority()) > (p2->getPriority())) {
+        return true;
+    } else {
+        return false;
+    }
     return false; // change this!
 }
