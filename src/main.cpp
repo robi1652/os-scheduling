@@ -85,10 +85,26 @@ int main(int argc, char **argv)
         // Do the following:
         //   - Get current time
         //   - *Check if any processes need to move from NotStarted to Ready (based on elapsed time), and if so put that process in the ready queue
+        //  How can i tell if processes need to move baesd on elapsed time?
+        //  How do I track elapsed time?
+
         //   - *Check if any processes have finished their I/O burst, and if so put that process back in the ready queue
+        //  How can I tell if a process is done with its IO burst?
+
         //   - *Check if any running process need to be interrupted (RR time slice expires or newly ready process has higher priority)
+        //  Isn't this handled in coreRunProcesses?
+
         //   - *Sort the ready queue (if needed - based on scheduling algorithm)
+        //  Think I use the comparators here but idk how
+        //if (shared_data->algorithm == ScheduleAlgorithm::SJF) {
+
+        //} else if (shared_data->algorithm == ScheduleAlgorithm::PP) {
+
+        //}
+
         //   - Determine if all processes are in the terminated state
+        //  This is handled by the while condition
+
         //   - * = accesses shared data (ready queue), so be sure to use proper synchronization
 
         // output process status table
@@ -126,7 +142,7 @@ int main(int argc, char **argv)
     {
         first_processes_time = first_processes_time + processes[i]->getTurnaroundTime();
     }
-    std::cout << "Average of First 50% of Processes Finished: " << ((sizeOf(processes)/2)/first_processes_time);
+    std::cout << "Average of First 50% of Processes Finished: " << ((processes.size()/2)/first_processes_time);
 
     //     - Average for second 50% of processes finished
     double second_processes_time = 0;
@@ -135,10 +151,10 @@ int main(int argc, char **argv)
     {
         second_processes_time = second_processes_time + processes[i]->getTurnaroundTime();
     }
-    std::cout << "Average of Second 50% of Processes Finished: " << ((sizeOf(processes) - sizeOf(processes)/2)/second_processes_time);
+    std::cout << "Average of Second 50% of Processes Finished: " << ((processes.size() - processes.size()/2)/second_processes_time);
 
     //     - Overall average of processes finished
-    std::cout << "Overall Average of Processes Finished: " << (sizeOf(processes)/(first_processes_time + second_processes_time));
+    std::cout << "Overall Average of Processes Finished: " << (processes.size()/(first_processes_time + second_processes_time));
 
     //  - Average turnaround time
     double total_turn_time = 0;
@@ -147,16 +163,16 @@ int main(int argc, char **argv)
     {
         total_turn_time = total_turn_time + processes[i]->getTurnaroundTime();
     }
-    std::cout << "Average Turnaround Time: " << (total_turn_time/sizeof(processes));
+    std::cout << "Average Turnaround Time: " << (total_turn_time/processes.size());
 
     //  - Average waiting time
     double total_wait_time = 0;
     
-    for (int i = 0; i < sizeof(processes); i++)
+    for (int i = 0; i < processes.size(); i++)
     {
         total_wait_time = total_wait_time + processes[i]->getWaitTime();
     }
-    std::cout << "Average Waiting Time: " << (total_wait_time/sizeof(processes));
+    std::cout << "Average Waiting Time: " << (total_wait_time/processes.size());
 
 
     // Clean up before quitting program
@@ -171,43 +187,48 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
     // Repeat until all processes in terminated state:
     while (!(shared_data->all_terminated)) {
         Process *current = shared_data->ready_queue[0];
+        shared_data->ready_queue.pop_front();
         uint64_t startTime = currentTime();
         //See implementation: shoudl timeElapsed exist or should it be dynamic
         uint64_t timeElapsed = currentTime() - startTime;
-        while((timeElapsed < current->remain_time) {
-            if (shared_data->algorithm == ScheduleAlgorithm::RR){
+
+        //The if RR should be outside of the while loop, right
+        if (shared_data->algorithm == ScheduleAlgorithm::RR){
+            while((timeElapsed < current->remain_time)) {
                 if (shared_data->time_slice < timeElapsed) {
                     current->remain_time -= timeElapsed;
                     //Context Switch wait time
                     usleep(shared_data->context_switch);
-                    current->state == State::Ready;
-                    //Put back on the ready queue
+                    current->setState(Process::State::Ready, currentTime());
+                    shared_data->ready_queue.push_back(current);
+                    //Put back on the ready queue 
                     break;
                 }
-            }
-            if ((shared_data->ready_queue[0]->priority) < current->priority) {
-                current->remain_time -= timeElapsed;
+                if ((shared_data->ready_queue[0]->priority) < current->getPriority()) {
+                current->remain_time -= timeElapsed; // This is wrong- how do I properly update the time
                 //Context Switch wait time
                 usleep(shared_data->context_switch);
-                current->state == State::Ready;
+                current->setState(Process::State::Ready, currentTime());
                 //put back on the ready queue
                 break;
+                }
+                timeElapsed = currentTime() - startTime;
             }
-            timeElapsed = currentTime() - startTime;
+        }
+        //I don't understand "number of bursts"
+        if (current->num_bursts > 0 && current->getState() != Process::State::Ready) {
+            //Context Switch wait time
+            usleep(shared_data->context_switch);
+            current->setState(Process::State::IO, currentTime()); 
+        }
+
+        if (current->num_bursts == 0) {
+            //Context Switch wait time
+            usleep(shared_data->context_switch);
+            current->setState(Process::State::Terminated, currentTime());
         }
     }
 
-    if (current->num_bursts > 0 && current->state != State::Ready) {
-        //Context Switch wait time
-        usleep(shared_data->context_switch);
-        current->state == State::IO;
-    }
-
-    if (current->num_bursts == 0) {
-        //Context Switch wait time
-        usleep(shared_data->context_switch);
-        current->state = State::Terminated;
-    }
     //   - *Get process at front of ready queue - DONE
     //   - Simulate the processes running until one of the following: - DONE
     //     - CPU burst time has elapsed - DONE
@@ -215,7 +236,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
 
     //  - Place the process back in the appropriate queue
     //     - I/O queue if CPU burst finished (and process not finished) -- no actual queue, simply set state to IO -- Done I think
-    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- DONE I think
+    //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated -- Not done, I don't understand this one
     //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time)
     //  - Wait context switching time -- DONE
     //  - * = accesses shared data (ready queue), so be sure to use proper synchronization
