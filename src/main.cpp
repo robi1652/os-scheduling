@@ -29,6 +29,7 @@ std::string processStateToString(Process::State state);
 
 int main(int argc, char **argv)
 {
+
     // Ensure user entered a command line parameter for configuration file name
     if (argc < 2)
     {
@@ -68,6 +69,8 @@ int main(int argc, char **argv)
     // Free configuration data from memory
     deleteConfig(config);
 
+    uint64_t zeroStartTime = currentTime();
+
     // Launch 1 scheduling thread per cpu core
     std::thread *schedule_threads = new std::thread[num_cores];
     for (i = 0; i < num_cores; i++)
@@ -81,8 +84,6 @@ int main(int argc, char **argv)
     uint64_t masterStartTime = currentTime();
     uint64_t masterElapsedTime;
 
-    //  This is supposed to loop through the list of processes one by one, right? and run each of these checks below on each individual process?
-    //  My plan: Just have this single while loop with no inner loops, just has if checks that ask "is this process ready?" "is this process in IO and is it done with it?" "is this process running and needs interrupting?"
     while (!(shared_data->all_terminated))
     {
         // Clear output from previous iteration
@@ -90,6 +91,11 @@ int main(int argc, char **argv)
 
         Process* current = processes.front();
         processes.erase(processes.begin());
+
+        if (current->getStartTime() == 0) {
+            current->setStartTime(zeroStartTime);
+        }
+
 
 
         // Do the following:
@@ -103,7 +109,12 @@ int main(int argc, char **argv)
         if (current->getState() == Process::State::NotStarted) {
             if (masterStartTime + current->getStartTime() < loopTime) {
                 current->setState(Process::State::Ready, loopTime);
-                shared_data->ready_queue.push_back(current);
+                current->setStartTime(loopTime);
+                {
+                    std::lock_guard<std::mutex> lock(shared_data->mutex);
+                    shared_data->ready_queue.push_back(current);
+                }
+                
             }
         }
 
@@ -118,7 +129,11 @@ int main(int argc, char **argv)
             if (timeOnIOBurst > ioBurstTotalTime) {
                 current->moveToNextBurst();
                 current->setState(Process::State::Ready, loopTime);
-                shared_data->ready_queue.push_back(current);
+                {
+                    std::lock_guard<std::mutex> lock(shared_data->mutex);
+                    shared_data->ready_queue.push_back(current);
+                }
+                
             }
         }
 
@@ -160,17 +175,41 @@ int main(int argc, char **argv)
 
         //   - Determine if all processes are in the terminated state
 
-        //   - * = accesses shared data (ready queue), so be sure to use proper synchronization
+        for (int k = 0; k < processes.size(); k++) {
+            if (processes[k]->getState() != Process::State::Terminated) {
+                shared_data->all_terminated = false;
+                break;
+            } else {
+                shared_data->all_terminated = true;
+            }
+        }
 
-        // output process status table
-        num_lines = printProcessOutput(processes, shared_data->mutex);
+        //   - * = accesses shared data (ready queue), so be sure to use proper synchronization
 
         current->updateProcess(loopTime);
 
         processes.push_back(current);
 
+        // output process status table
+        num_lines = printProcessOutput(processes, shared_data->mutex);
+
+        for (int k = 0; k < processes.size(); k++) {
+            if (processes[k]->getState() != Process::State::Terminated) {
+                shared_data->all_terminated = false;
+                break;
+            } else {
+                shared_data->all_terminated = true;
+            }
+        }
+
+
+
         // sleep 50 ms
         usleep(50000);
+
+        if (shared_data->all_terminated == true) {
+            break;
+        }
     }
 
 
@@ -244,6 +283,8 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
 {
     // Work to be done by each core idependent of the other cores
     // Repeat until all processes in terminated state:
+
+    std::list<Process*>::iterator endIterator;
 
     while (!(shared_data->all_terminated)) {
 
@@ -321,7 +362,6 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
             //Context Switch wait time
             usleep(shared_data->context_switch);           
         }
-
         
     }
 

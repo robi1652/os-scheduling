@@ -151,6 +151,12 @@ void Process::setCurrentWaitStartTime(uint64_t current_time)
     current_wait_start_time = current_time;
 }
 
+void Process::setStartTime(uint64_t current_time)
+{
+    start_time = current_time;
+    
+}
+
 
 
 //  Where am I supposed to call this? End of the loop iteration in CRP?
@@ -159,11 +165,9 @@ void Process::updateProcess(uint64_t current_time)
 {
     // use `current_time` to update turnaround time, wait time, burst times, 
     // cpu time, and remaining time
-
     //  Turn Time
-    //  make sure not terminated
     if (state != Process::State::Terminated) {
-        turn_time = current_time - start_time;
+        turn_time = (current_time - start_time);
     } 
 
     //  Wait Time

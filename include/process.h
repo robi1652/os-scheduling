@@ -57,6 +57,7 @@ public:
 
     void moveToNextBurst();
     void setCurrentWaitStartTime(uint64_t current_time);
+    void setStartTime(uint64_t current_time);
 
     void updateProcess(uint64_t current_time);
     void updateBurstTime(int burst_idx, uint32_t new_time);
