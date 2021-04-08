@@ -129,6 +129,7 @@ int main(int argc, char **argv)
             if (timeOnIOBurst > ioBurstTotalTime) {
                 current->moveToNextBurst();
                 current->setState(Process::State::Ready, loopTime);
+                current->setCurrentWaitStartTime(currentTime());
                 {
                     std::lock_guard<std::mutex> lock(shared_data->mutex);
                     shared_data->ready_queue.push_back(current);
@@ -201,8 +202,6 @@ int main(int argc, char **argv)
                 shared_data->all_terminated = true;
             }
         }
-
-
 
         // sleep 50 ms
         usleep(50000);
@@ -289,16 +288,13 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
     while (!(shared_data->all_terminated)) {
 
         //  Make sure ready queue not empty
-
-        if (shared_data->ready_queue.size() == 0) {
-            continue;
-        }
-
         //  critical section starts
         Process* current;
         {
             std::lock_guard<std::mutex> lock(shared_data->mutex);
-
+            if (shared_data->ready_queue.size() == 0) {
+                continue;
+            } 
             current = shared_data->ready_queue.front();
             shared_data->ready_queue.pop_front();
         }
@@ -321,6 +317,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 timeElapsed = currentTime() - current->getBurstStartTime();
                 current->updateBurstTime(currentBurst, currentBurstTime - timeElapsed);
                 current->setState(Process::State::Ready, currentTime());
+                current->setCurrentWaitStartTime(currentTime());
                 current->interruptHandled();
                 current->setCpuCore(-1);
                 //  mutex lock here again
